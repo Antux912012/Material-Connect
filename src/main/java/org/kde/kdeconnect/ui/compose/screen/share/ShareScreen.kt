@@ -1,40 +1,56 @@
-/*
- * SPDX-FileCopyrightText: 2026 Saul Cintero Chocarro <scintero@gmail.com>
- *
- * SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
- */
+// SPDX-FileCopyrightText: 2026 Saul Cintero Chocarro <scintero@gmail.com>
+// SPDX-FileCopyrightText: 2026 Antonio De Gaetano <https://github.com/Antux912012>
+// SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
+/**
+ * File Responsibility:
+ * Renders the Material 3 Expressive device target selector for outgoing file and URL sharing.
+ *
+ * Architecture Position:
+ * UI Presentation Screen Layer (`org.kde.kdeconnect.ui.compose.screen.share`).
+ * Upstream callers: `ShareActivity`.
+ * Downstream dependencies: `KdeCard`, `SectionHeader`, `DeviceUiModel`.
+ *
+ * Concurrency & Thread-Safety Constraints:
+ * Stateless Composable UI hierarchy evaluated on the Compose UI composition thread.
+ */
 package org.kde.kdeconnect.ui.compose.screen.share
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.kde.kdeconnect.extensions.safeDrawingBottomPadding
 import org.kde.kdeconnect.ui.compose.KdeTheme
 import org.kde.kdeconnect.ui.compose.components.KdeCard
@@ -85,11 +101,7 @@ private fun ShareScreenContent(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(
-                    top = 4.dp,
-                    start = 8.dp,
-                    end = 8.dp
-                ),
+                .padding(horizontal = 16.dp, vertical = 4.dp),
             contentPadding = safeDrawingBottomPadding(),
             state = state
         ) {
@@ -101,9 +113,7 @@ private fun ShareScreenContent(
                 key = { device -> device.id }
             ) { device ->
                 KdeCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     content = { ShareScreenCardContent(device = device) },
                     onClick = { onDeviceClick(device.id) }
                 )
@@ -114,44 +124,65 @@ private fun ShareScreenContent(
 
 @Composable
 private fun ShareScreenCardContent(device: DeviceUiModel) {
+    val avatarBgColor = if (device.isReachable) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val avatarIconColor = if (device.isReachable) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
     Row(
         modifier = Modifier
-            .wrapContentSize()
-            .defaultMinSize(minHeight = 48.dp)
-            .padding(all = 32.dp),
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 68.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (device.icon > 0) {
-            Image(
-                imageVector = ImageVector.vectorResource(id = device.icon),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(color = MaterialTheme.colorScheme.onSurfaceVariant),
+            Box(
                 modifier = Modifier
-                    .padding(start = 12.dp)
-                    .size(32.dp)
-                    .wrapContentHeight()
-            )
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(avatarBgColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    imageVector = ImageVector.vectorResource(id = device.icon),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(color = avatarIconColor),
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
         }
         Column(
-            modifier = Modifier
-                .padding(start = 8.dp)
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
                 text = device.name,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 18.sp
+                color = MaterialTheme.colorScheme.onSurface,
             )
             if (!device.isReachable) {
                 Text(
                     text = stringResource(id = R.string.runcommand_notreachable),
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFCC2222),
-                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.error,
                     maxLines = 1
                 )
             }
         }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 

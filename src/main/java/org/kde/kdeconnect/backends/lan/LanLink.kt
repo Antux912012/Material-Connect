@@ -23,6 +23,7 @@ import org.kde.kdeconnect.backends.lan.LanLinkProvider.Companion.openServerSocke
 import org.kde.kdeconnect.extensions.closeSafe
 import org.kde.kdeconnect.helpers.LineTooLongException
 import org.kde.kdeconnect.helpers.ThreadHelper
+import org.kde.kdeconnect.helpers.hardware.SocHardwareOptimizer
 import org.kde.kdeconnect.helpers.readLineBounded
 import org.kde.kdeconnect.helpers.security.SslHelper.convertToSslSocket
 import java.io.BufferedInputStream
@@ -193,8 +194,9 @@ class LanLink(
             val outputStream = payloadSocket.outputStream
 
             Log.i(TAG, "Beginning to send payload for ${np.type})")
-            val buffer = ByteArray(PAYLOAD_BUFFER_SIZE)
             val size = np.payloadSize
+            val bufferSize = SocHardwareOptimizer.selectTransferBufferSize(size, PAYLOAD_BUFFER_SIZE)
+            val buffer = ByteArray(bufferSize)
             var bytesRead = 0
             var progress: Long = 0
             var timeSinceLastUpdate: Long = -1
@@ -253,6 +255,7 @@ class LanLink(
     companion object {
         private const val TAG = "LanLink"
         private const val MAX_PACKET_SIZE: Int = 32 * 1024 * 1024
-        private const val PAYLOAD_BUFFER_SIZE: Int = 256 * 1024
+        private val PAYLOAD_BUFFER_SIZE: Int
+            get() = SocHardwareOptimizer.optimalPayloadBufferSize
     }
 }

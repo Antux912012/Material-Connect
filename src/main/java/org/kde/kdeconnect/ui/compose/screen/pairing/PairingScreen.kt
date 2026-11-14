@@ -1,13 +1,26 @@
-/*
- * SPDX-FileCopyrightText: 2026 Saul Cintero Chocarro <scintero@gmail.com>
- *
- * SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
- */
+// SPDX-FileCopyrightText: 2026 Saul Cintero Chocarro <scintero@gmail.com>
+// SPDX-FileCopyrightText: 2026 Antonio De Gaetano <https://github.com/Antux912012>
+// SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
+/**
+ * File Responsibility:
+ * Renders the Material 3 Expressive device discovery and pairing dashboard (`PairingScreen`).
+ *
+ * Architecture Position:
+ * UI Presentation Screen Layer (`org.kde.kdeconnect.ui.compose.screen.pairing`).
+ * Upstream callers: `PairingFragment`.
+ * Downstream dependencies: `PairingUiState`, `DeviceUiModel`, `KdeCard`, `SectionHeader`.
+ *
+ * Concurrency & Thread-Safety Constraints:
+ * Stateless Composable UI hierarchy driven by immutable `PairingUiState`.
+ */
 package org.kde.kdeconnect.ui.compose.screen.pairing
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,20 +31,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -40,7 +59,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.kde.kdeconnect.extensions.safeDrawingBottomPadding
 import org.kde.kdeconnect.ui.compose.KdeTheme
 import org.kde.kdeconnect.ui.compose.components.KdeBodyLargeText
@@ -95,12 +113,13 @@ private fun PairingScreenContent(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 16.dp),
             contentPadding = safeDrawingBottomPadding(),
             state = lazyListState
         ) {
-            // Explanations
+            // Explanations & Permission Banners
             item {
+                Spacer(modifier = Modifier.height(8.dp))
                 PairingExplanations(
                     uiState = uiState,
                     onWifiSettingsClick = onWifiSettingsClick,
@@ -118,12 +137,10 @@ private fun PairingScreenContent(
                     EmptyPlaceholder()
                 }
             } else {
-                item {
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
                 itemsIndexed(
                     items = uiState.connected,
-                    key = { _, connectedDevice -> connectedDevice.id }) { _, connectedDevice ->
+                    key = { _, connectedDevice -> connectedDevice.id }
+                ) { _, connectedDevice ->
                     CardContent(
                         device = connectedDevice,
                         onClick = onClick
@@ -136,12 +153,10 @@ private fun PairingScreenContent(
                 item {
                     SectionHeader(title = stringResource(id = R.string.category_not_paired_devices))
                 }
-                item {
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
                 itemsIndexed(
                     items = uiState.available,
-                    key = { _, availableDevice -> availableDevice.id }) { _, availableDevice ->
+                    key = { _, availableDevice -> availableDevice.id }
+                ) { _, availableDevice ->
                     CardContent(
                         device = availableDevice,
                         onClick = onClick
@@ -154,12 +169,10 @@ private fun PairingScreenContent(
                 item {
                     SectionHeader(title = stringResource(id = R.string.category_remembered_devices))
                 }
-                item {
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
                 itemsIndexed(
                     items = uiState.remembered,
-                    key = { _, rememberedDevice -> rememberedDevice.id }) { _, rememberedDevice ->
+                    key = { _, rememberedDevice -> rememberedDevice.id }
+                ) { _, rememberedDevice ->
                     CardContent(
                         device = rememberedDevice,
                         onClick = onClick
@@ -177,7 +190,7 @@ private fun PairingExplanations(
     onNotificationSettingsClick: () -> Unit,
     onLocalNetworkPermissionClick: () -> Unit
 ) {
-    Column {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!uiState.hasLocalNetworkPermission) {
             PairingExplanationRow(
                 text = stringResource(id = R.string.pairing_missing_local_network_permission),
@@ -229,25 +242,67 @@ fun PairingExplanationRow(
     icon: Int? = null,
     onClick: (() -> Unit)? = null
 ) {
-    Row(
+    val isWarning = icon == R.drawable.ic_warning
+    val containerColor = when {
+        isWarning && onClick != null -> MaterialTheme.colorScheme.errorContainer
+        isWarning -> MaterialTheme.colorScheme.tertiaryContainer
+        onClick != null -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceContainerLow
+    }
+    val contentColor = when {
+        isWarning && onClick != null -> MaterialTheme.colorScheme.onErrorContainer
+        isWarning -> MaterialTheme.colorScheme.onTertiaryContainer
+        onClick != null -> MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = containerColor,
+        contentColor = contentColor,
         modifier = Modifier
             .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        if (icon != null) {
-            Image(
-                painter = painterResource(id = icon),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (icon != null) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(contentColor.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = icon),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        colorFilter = ColorFilter.tint(color = contentColor)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+            }
+            KdeBodyMediumText(
+                text = text,
+                color = contentColor,
+                modifier = Modifier.weight(1f)
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            if (onClick != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
-        KdeBodyMediumText(
-            text = text,
-            onClick = { onClick?.invoke() }
-        )
     }
 }
 
@@ -261,11 +316,22 @@ fun DuplicateNamesWarning() {
 
 @Composable
 fun EmptyPlaceholder() {
-    KdeBodySmallText(
-        text = stringResource(R.string.device_list_empty),
-        modifier = Modifier.padding(10.dp),
-        textAlign = TextAlign.Center,
-    )
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        KdeBodySmallText(
+            text = stringResource(R.string.device_list_empty),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            textAlign = TextAlign.Center,
+        )
+    }
 }
 
 @Composable
@@ -273,8 +339,20 @@ private fun CardContent(
     device: DeviceUiModel,
     onClick: (String) -> Unit
 ) {
+    val cardColors = if (device.isReachable && device.isPaired) {
+        CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        )
+    } else {
+        CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        )
+    }
     KdeCard(
         modifier = Modifier.fillMaxWidth(),
+        colors = cardColors,
         content = {
             PairingScreenCardContent(device = device)
         },
@@ -284,40 +362,65 @@ private fun CardContent(
 
 @Composable
 private fun PairingScreenCardContent(device: DeviceUiModel) {
+    val isConnected = device.isReachable && device.isPaired
+    val avatarBgColor = when {
+        isConnected -> MaterialTheme.colorScheme.primaryContainer
+        device.isReachable -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val avatarIconColor = when {
+        isConnected -> MaterialTheme.colorScheme.onPrimaryContainer
+        device.isReachable -> MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
     Row(
         modifier = Modifier
-            .wrapContentSize()
-            .defaultMinSize(minHeight = 48.dp)
-            .padding(all = 32.dp),
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 68.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (device.icon > 0) {
-            Image(
-                imageVector = ImageVector.vectorResource(id = device.icon),
-                contentDescription = null,
-                colorFilter = ColorFilter.tint(color = MaterialTheme.colorScheme.onSurfaceVariant),
+            Box(
                 modifier = Modifier
-                    .padding(start = 12.dp)
-                    .size(32.dp)
-                    .wrapContentHeight()
-            )
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(avatarBgColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    imageVector = ImageVector.vectorResource(id = device.icon),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(color = avatarIconColor),
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
         }
         Column(
-            modifier = Modifier.padding(start = 8.dp)
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             KdeBodyLargeText(
                 text = device.name,
-                fontSize = 18.sp,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             if (device.summaryRes > 0) {
-                KdeBodySmallText(
+                Text(
                     text = stringResource(id = device.summaryRes),
-                    color = Color(0xFFCC2222),
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
                     maxLines = 1,
                 )
             }
         }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 
@@ -346,7 +449,8 @@ private fun PreviewCompose() {
                         summaryRes = 0,
                         isReachable = true,
                         isPaired = false
-                    ), DeviceUiModel(
+                    ),
+                    DeviceUiModel(
                         id = "_2504584b_6aa2_3cd6_bd1b_5e958aa6cd24_",
                         icon = R.drawable.ic_device_desktop_32dp,
                         name = "Device 2",

@@ -60,6 +60,7 @@ import androidx.core.content.getSystemService
 import androidx.media.VolumeProviderCompat
 import org.kde.kdeconnect.Device
 import org.kde.kdeconnect.KdeConnect
+import org.kde.kdeconnect.helpers.hardware.PredictiveMotionFilter
 import org.kde.kdeconnect.ui.compose.KdeButton
 import org.kde.kdeconnect.ui.compose.KdeDropdownMenuItem
 import org.kde.kdeconnect.ui.compose.KdeOverflowMenu
@@ -83,13 +84,20 @@ class PresenterActivity : AppCompatActivity(), SensorEventListener, OnSharedPref
     private lateinit var prefs: SharedPreferences
     private var sensitivity = 0.03f
     private var zoomControlsVisible by mutableStateOf(false)
+    private val gyroMotionFilter = PredictiveMotionFilter(
+        processNoiseQ = 0.10f,
+        measurementNoiseR = 0.20f,
+        predictionLeadFactor = 0.16f
+    )
+    private val filteredPointerDelta = FloatArray(2)
 
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type == Sensor.TYPE_GYROSCOPE) {
             val xPos = -event.values[2] * sensitivity
             val yPos = -event.values[0] * sensitivity
 
-            plugin.sendPointer(xPos, yPos)
+            gyroMotionFilter.filter(xPos, yPos, filteredPointerDelta)
+            plugin.sendPointer(filteredPointerDelta[0], filteredPointerDelta[1])
         }
     }
 
@@ -248,6 +256,7 @@ class PresenterActivity : AppCompatActivity(), SensorEventListener, OnSharedPref
                             .pointerInteropFilter { event ->
                                 when (event.action) {
                                     MotionEvent.ACTION_DOWN -> {
+                                        gyroMotionFilter.reset()
                                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                         sensorManager.registerListener(
                                             this@PresenterActivity,
@@ -256,9 +265,10 @@ class PresenterActivity : AppCompatActivity(), SensorEventListener, OnSharedPref
                                         )
                                     }
 
-                                    MotionEvent.ACTION_UP -> {
+                                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                                         haptics.performHapticFeedback(HapticFeedbackType.GestureEnd)
                                         sensorManager.unregisterListener(this@PresenterActivity)
+                                        gyroMotionFilter.reset()
                                         plugin.stopPointer()
                                         false
                                     }

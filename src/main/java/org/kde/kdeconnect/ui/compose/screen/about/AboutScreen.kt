@@ -1,9 +1,20 @@
-/*
- * SPDX-FileCopyrightText: 2026 Tanish Ranjan <tanishranjan4@gmail.com>
- *
- * SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
- */
+// SPDX-FileCopyrightText: 2026 Tanish Ranjan <tanishranjan4@gmail.com>
+// SPDX-FileCopyrightText: 2026 Antonio De Gaetano <https://github.com/Antux912012>
+// SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 
+/**
+ * File Responsibility:
+ * Renders the Material 3 Expressive About screen with hero branding, tonal quick-action pills,
+ * and contributor cards.
+ *
+ * Architecture Position:
+ * UI Presentation Screen Layer (`org.kde.kdeconnect.ui.compose.screen.about`).
+ * Upstream callers: `AboutFragment`.
+ * Downstream dependencies: `AboutData`, `KdeTheme`.
+ *
+ * Concurrency & Thread-Safety Constraints:
+ * Stateless Composable UI hierarchy evaluated on the Compose UI composition thread.
+ */
 package org.kde.kdeconnect.ui.compose.screen.about
 
 import android.content.ClipData
@@ -13,9 +24,11 @@ import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -28,7 +41,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +59,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -116,6 +133,10 @@ private fun AppInfoCard(
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
         onClick = {
             val clipboard = context.getSystemService<ClipboardManager>()!!
             clipboard.setPrimaryClip(ClipData.newPlainText("Version", aboutData.versionName))
@@ -143,27 +164,42 @@ private fun AppInfoCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.Top
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = painterResource(id = aboutData.icon),
-                contentDescription = null,
-                modifier = Modifier.size(52.dp)
-            )
-
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = aboutData.icon),
+                    contentDescription = null,
+                    modifier = Modifier.size(44.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
             Column(
-                modifier = Modifier.align(Alignment.CenterVertically)
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     text = stringResource(aboutData.name),
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text = stringResource(id = R.string.version, aboutData.versionName),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Text(
+                        text = stringResource(id = R.string.version, aboutData.versionName),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
             }
         }
     }
@@ -238,7 +274,7 @@ private fun ActionButtons(
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val buttonWidth = 84.dp
+        val buttonWidth = 88.dp
         val totalNeededWidth = buttonWidth.times(buttons.size)
 
         val maxItemsInRow = if (totalNeededWidth <= this.maxWidth) buttons.size else 3
@@ -246,6 +282,7 @@ private fun ActionButtons(
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             maxItemsInEachRow = maxItemsInRow
         ) {
             buttons.forEach { button -> button() }
@@ -263,47 +300,58 @@ private fun ActionIconTextButton(
 
     Column(
         modifier = Modifier
-            .size(84.dp)
+            .size(width = 88.dp, height = 84.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
             .clickable(
                 interactionSource = interactionSource,
                 indication = ripple(
-                    color = MaterialTheme.colorScheme.onBackground,
-                    bounded = false
+                    color = MaterialTheme.colorScheme.primary,
+                    bounded = true
                 ),
                 onClick = onClick
-            ),
+            )
+            .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
             painter = painterResource(id = iconRes),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onBackground,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(24.dp)
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = stringResource(id = textRes),
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            maxLines = 2
         )
     }
 }
 
 @Composable
 private fun AuthorsCard(aboutData: AboutData) {
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        )
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(20.dp)
         ) {
             Text(
                 text = stringResource(id = R.string.authors),
-                style = MaterialTheme.typography.titleLarge
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             aboutData.authors.forEach { author ->
                 AuthorItemRow(author = author)
@@ -314,6 +362,7 @@ private fun AuthorsCard(aboutData: AboutData) {
                 Text(
                     text = stringResource(id = footerResId),
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 4.dp)
                 )
             }
@@ -330,7 +379,8 @@ private fun AuthorItemRow(author: AboutPerson) {
     ) {
         Text(
             text = author.name,
-            style = MaterialTheme.typography.bodyLarge
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface
         )
         if (author.task != null) {
             Text(

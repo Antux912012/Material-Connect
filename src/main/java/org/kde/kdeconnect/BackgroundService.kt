@@ -27,6 +27,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import java.util.concurrent.ConcurrentHashMap
 import org.kde.kdeconnect.backends.BaseLinkProvider
 import org.kde.kdeconnect.backends.BaseLinkProvider.ConnectionReceiver
 import org.kde.kdeconnect.backends.bluetooth.BluetoothLinkProvider
@@ -54,6 +55,7 @@ class BackgroundService : Service() {
 
     private var screenOnReceiver: KdeConnectBroadcastReceiver? = null
     private var networkCallback: NetworkCallback? = null
+    private val activeNetworks = ConcurrentHashMap.newKeySet<Network>()
 
     /** Indicates whether device is connected over wifi / usb / bluetooth / (anything other than cellular) */
     val isConnectedToNonCellularNetwork: LiveData<Boolean>
@@ -125,13 +127,15 @@ class BackgroundService : Service() {
 
             override fun onAvailable(network: Network) {
                 Log.i("BackgroundService", "Valid network available")
+                activeNetworks.add(network)
                 isConnectedToNonCellularNetwork.postValue(true)
                 onNetworkChange(network)
             }
 
             override fun onLost(network: Network) {
                 Log.i("BackgroundService", "Valid network lost")
-                isConnectedToNonCellularNetwork.postValue(false)
+                activeNetworks.remove(network)
+                isConnectedToNonCellularNetwork.postValue(activeNetworks.isNotEmpty())
                 onNetworkChange(null)
             }
         }.also {
@@ -246,6 +250,7 @@ class BackgroundService : Service() {
         screenOnReceiver = null
         networkCallback?.let { getSystemService<ConnectivityManager>()?.unregisterNetworkCallback(it) }
         networkCallback = null
+        activeNetworks.clear()
         instance = null
         super.onDestroy()
     }
@@ -279,9 +284,11 @@ class BackgroundService : Service() {
         private const val UPDATE_IMMUTABLE_FLAGS = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         private const val FOREGROUND_NOTIFICATION_ID = 1
 
+        @Volatile
         var instance: BackgroundService? = null
             private set
 
+        @Volatile
         private var initialized = false
 
         private fun createNonCellularNetworkRequestBuilder(): NetworkRequest.Builder {

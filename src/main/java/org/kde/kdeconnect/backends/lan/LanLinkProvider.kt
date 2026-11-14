@@ -617,6 +617,7 @@ class LanLinkProvider(private val context: Context) : BaseLinkProvider() {
         }
     }
 
+    @Synchronized
     private fun handleNetworkChange(network: Network?) {
         if (isStopped) return
         setupUdpListener()
@@ -634,9 +635,12 @@ class LanLinkProvider(private val context: Context) : BaseLinkProvider() {
         }
     }
 
+    @Synchronized
     override fun onStop() {
         //Log.i("KDE/LanLinkProvider", "onStop");
         isStopped = true
+        networkChangeJob?.cancel()
+        networkChangeJob = null
         customDevicePreferences.unregisterOnSharedPreferenceChangeListener(customDeviceListener)
         synchronized(mdnsDiscovery) {
             mdnsDiscovery.stopAnnouncing()

@@ -27,6 +27,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import org.kde.kdeconnect.KdeConnect
 import org.kde.kdeconnect.base.BaseActivity
+import org.kde.kdeconnect.helpers.hardware.PredictiveMotionFilter
 import org.kde.kdeconnect.ui.PluginSettingsActivity
 import org.kde.kdeconnect.ui.compose.components.addDeviceDisconnectedOverlay
 import org.kde.kdeconnect_tp.R
@@ -70,6 +71,17 @@ class MousePadActivity :
     private lateinit var mPointerAccelerationProfile: PointerAccelerationProfile
 
     private val mouseDelta = PointerAccelerationProfile.MouseDelta() // to be reused on every touch move event
+    private val touchMotionFilter = PredictiveMotionFilter(
+        processNoiseQ = 0.14f,
+        measurementNoiseR = 0.16f,
+        predictionLeadFactor = 0.14f
+    )
+    private val gyroMotionFilter = PredictiveMotionFilter(
+        processNoiseQ = 0.10f,
+        measurementNoiseR = 0.22f,
+        predictionLeadFactor = 0.18f
+    )
+    private val filteredDelta = FloatArray(2)
 
     private lateinit var keyListenerView: KeyListenerView
 
@@ -121,7 +133,8 @@ class MousePadActivity :
             y *= (gyroscopeSensitivity / 100.0f)
         }
 
-        plugin.sendMouseDelta(x, y)
+        gyroMotionFilter.filter(x, y, filteredDelta)
+        plugin.sendMouseDelta(filteredDelta[0], filteredDelta[1])
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -198,6 +211,7 @@ class MousePadActivity :
     override fun onPause() {
         if (gyroEnabled) {
             mSensorManager?.unregisterListener(this)
+            gyroMotionFilter.reset()
             gyroEnabled = false
         }
         super.onPause()
@@ -206,6 +220,7 @@ class MousePadActivity :
     override fun onStop() {
         if (gyroEnabled) {
             mSensorManager?.unregisterListener(this)
+            gyroMotionFilter.reset()
             gyroEnabled = false
         }
         super.onStop()
@@ -290,13 +305,17 @@ class MousePadActivity :
             MotionEvent.ACTION_DOWN -> {
                 mPrevX = event.x
                 mPrevY = event.y
+                touchMotionFilter.reset()
             }
             MotionEvent.ACTION_MOVE -> {
                 val mCurrentX = event.x
                 val mCurrentY = event.y
 
-                val deltaX = (mCurrentX - mPrevX) * displayDpiMultiplier * mCurrentSensitivity
-                val deltaY = (mCurrentY - mPrevY) * displayDpiMultiplier * mCurrentSensitivity
+                val rawDeltaX = (mCurrentX - mPrevX) * displayDpiMultiplier * mCurrentSensitivity
+                val rawDeltaY = (mCurrentY - mPrevY) * displayDpiMultiplier * mCurrentSensitivity
+                touchMotionFilter.filter(rawDeltaX, rawDeltaY, filteredDelta)
+                val deltaX = filteredDelta[0]
+                val deltaY = filteredDelta[1]
 
                 if (maybeDragging) {
                     accumulatedDragDistance2 += deltaX * deltaX + deltaY * deltaY
@@ -317,7 +336,8 @@ class MousePadActivity :
                 mPrevX = mCurrentX
                 mPrevY = mCurrentY
             }
-            MotionEvent.ACTION_UP -> {
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                touchMotionFilter.reset()
                 if (doubleTapDragEnabled && maybeDragging) {
                     maybeDragging = false
                     accumulatedDragDistance2 = 0.0f
